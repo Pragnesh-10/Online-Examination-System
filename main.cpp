@@ -1,10 +1,18 @@
-
 #include <iostream>
 #include <vector>
 #include <string>
 #include <limits>
 #include <iomanip>
+#include <chrono>
+
 using namespace std;
+
+// -------------------- EXAM SETTINGS --------------------
+// Change these constants to customize the examination.
+const int EXAM_DURATION_MINUTES = 10;
+const double MARKS_FOR_CORRECT_ANSWER = 1.0;
+const double PENALTY_FOR_WRONG_ANSWER = 0.25;
+const double PASS_PERCENTAGE = 40.0;
 
 // Abstract Base Class
 class User {
@@ -24,12 +32,12 @@ public:
 // Student Class
 class Student : public User {
 private:
-    int score;
+    double score;
     int totalMarks;
 
 public:
     Student(string n) : User(n) {
-        score = 0;
+        score = 0.0;
         totalMarks = 0;
     }
 
@@ -41,27 +49,27 @@ public:
         return name;
     }
 
-    void setResult(int s, int total) {
+    void setResult(double s, int total) {
         score = s;
         totalMarks = total;
     }
 
     void displayResult() {
-        double percentage = 0;
+        double percentage = 0.0;
 
         if (totalMarks > 0) {
-            percentage =
-                (static_cast<double>(score) / totalMarks) * 100;
+            percentage = (score / totalMarks) * 100.0;
         }
 
         cout << "\n========== EXAM RESULT ==========\n";
         cout << "Student Name : " << name << endl;
+        cout << fixed << setprecision(2);
         cout << "Score        : " << score
              << "/" << totalMarks << endl;
-        cout << fixed << setprecision(2);
         cout << "Percentage   : " << percentage << "%\n";
+        cout << "Pass Mark    : " << PASS_PERCENTAGE << "%\n";
         cout << "Status       : "
-             << (percentage >= 40 ? "PASS" : "FAIL")
+             << (percentage >= PASS_PERCENTAGE ? "PASS" : "FAIL")
              << endl;
         cout << "=================================\n";
     }
@@ -158,7 +166,12 @@ public:
         getline(cin, d);
 
         cout << "Enter correct option (1-4): ";
-        cin >> ans;
+        if (!(cin >> ans)) {
+            cout << "Invalid input. Question not added.\n";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            return;
+        }
 
         if (ans < 1 || ans > 4) {
             cout << "Invalid answer. Question not added.\n";
@@ -178,43 +191,106 @@ public:
             return;
         }
 
-        int score = 0;
+        double score = 0.0;
+        int correctCount = 0;
+        int wrongCount = 0;
+        int unansweredCount = 0;
+
+        const auto startTime = chrono::steady_clock::now();
+        const auto deadline = startTime +
+            chrono::minutes(EXAM_DURATION_MINUTES);
 
         cout << "\n========== EXAM STARTED ==========\n";
         cout << "Student: " << student.getName() << endl;
-        cout << "Total Questions: "
-             << questions.size() << endl;
+        cout << "Total Questions: " << questions.size() << endl;
+        cout << "Time Limit: " << EXAM_DURATION_MINUTES << " minutes\n";
+        cout << "Correct Answer: +" << MARKS_FOR_CORRECT_ANSWER << " marks\n";
+        cout << "Wrong Answer: -" << PENALTY_FOR_WRONG_ANSWER << " marks\n";
+        cout << "Unanswered: 0 marks\n";
+        cout << "The exam will be submitted automatically when time expires.\n";
 
         for (int i = 0; i < static_cast<int>(questions.size()); i++) {
+            auto now = chrono::steady_clock::now();
+
+            if (now >= deadline) {
+                cout << "\nTime is up! Submitting your exam automatically.\n";
+                unansweredCount += static_cast<int>(questions.size()) - i;
+                break;
+            }
+
+            auto remainingSeconds =
+                chrono::duration_cast<chrono::seconds>(deadline - now).count();
+
+            cout << "\nTime remaining: "
+                 << remainingSeconds / 60 << " minute(s) "
+                 << remainingSeconds % 60 << " second(s)\n";
+
             questions[i].displayQuestion(i + 1);
 
-            int answer;
+            int answer = 0;
+            bool validAnswer = false;
 
-            while (true) {
-                cout << "Enter your answer (1-4): ";
+            while (!validAnswer) {
+                now = chrono::steady_clock::now();
 
-                if (cin >> answer &&
-                    answer >= 1 && answer <= 4) {
+                if (now >= deadline) {
+                    cout << "\nTime is up! Submitting your exam automatically.\n";
+                    unansweredCount +=
+                        static_cast<int>(questions.size()) - i;
                     break;
                 }
 
-                cout << "Invalid input. Enter a number from 1 to 4.\n";
-                cin.clear();
-                cin.ignore(
-                    numeric_limits<streamsize>::max(), '\n'
-                );
+                cout << "Enter your answer (1-4): ";
+
+                if (cin >> answer && answer >= 1 && answer <= 4) {
+                    validAnswer = true;
+                } else {
+                    cout << "Invalid input. Enter a number from 1 to 4.\n";
+                    cin.clear();
+                    cin.ignore(
+                        numeric_limits<streamsize>::max(), '\n'
+                    );
+                }
+            }
+
+            if (!validAnswer) {
+                break;
             }
 
             if (questions[i].checkAnswer(answer)) {
-                score++;
+                score += MARKS_FOR_CORRECT_ANSWER;
+                correctCount++;
+                cout << "Correct answer! +" << MARKS_FOR_CORRECT_ANSWER
+                     << " marks.\n";
+            } else {
+                score -= PENALTY_FOR_WRONG_ANSWER;
+                wrongCount++;
+                cout << "Incorrect answer. -" << PENALTY_FOR_WRONG_ANSWER
+                     << " marks.\n";
+            }
+
+            // Do not allow the final score to become negative.
+            if (score < 0.0) {
+                score = 0.0;
             }
         }
 
+        // Any questions not attempted because time expired are unanswered.
+        int attemptedCount = correctCount + wrongCount;
+        unansweredCount = static_cast<int>(questions.size()) - attemptedCount;
+
+        // The maximum possible score is one mark per question.
         student.setResult(
             score, static_cast<int>(questions.size())
         );
 
         cout << "\nExam submitted successfully!\n";
+        cout << "\nAnswer Summary:\n";
+        cout << "Correct answers   : " << correctCount << endl;
+        cout << "Wrong answers     : " << wrongCount << endl;
+        cout << "Unanswered        : " << unansweredCount << endl;
+        cout << "Negative marking  : -" << PENALTY_FOR_WRONG_ANSWER
+             << " per wrong answer\n";
         student.displayResult();
     }
 
