@@ -7,14 +7,10 @@
 
 using namespace std;
 
-// -------------------- EXAM SETTINGS --------------------
-// Change these constants to customize the examination.
-const int EXAM_DURATION_MINUTES = 10;
+const int EXAM_DURATION_MINUTES = 2;
 const double MARKS_FOR_CORRECT_ANSWER = 1.0;
 const double PENALTY_FOR_WRONG_ANSWER = 0.25;
 const double PASS_PERCENTAGE = 40.0;
-
-// Abstract Base Class
 class User {
 protected:
     string name;
@@ -29,7 +25,7 @@ public:
     virtual ~User() {}
 };
 
-// Student Class
+
 class Student : public User {
 private:
     double score;
@@ -300,7 +296,6 @@ public:
     }
 };
 
-// Main Function
 int main() {
     Exam exam;
     Admin admin("Admin");
